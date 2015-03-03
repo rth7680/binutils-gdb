@@ -690,3 +690,6 @@ Disassembly of section \.text:
  834:	4c 02 ff ff 	l\.maci r2,-1
  838:	4c 02 7f ff 	l\.maci r2,32767
  83c:	4c 02 80 00 	l\.maci r2,-32768
+
+00000840 <l_subb>:
+ 840:	e0 aa f8 06 	l\.subb r5,r10,r31

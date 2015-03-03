@@ -559,6 +559,7 @@ static const CGEN_OPINST *or1k_cgen_opinst_table[MAX_INSNS] = {
   & sfmt_l_add_ops[0],
   & sfmt_l_add_ops[0],
   & sfmt_l_addc_ops[0],
+  & sfmt_l_addc_ops[0],
   & sfmt_l_mul_ops[0],
   & sfmt_l_muld_ops[0],
   & sfmt_l_mulu_ops[0],

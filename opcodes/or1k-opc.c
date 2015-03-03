@@ -446,6 +446,12 @@ static const CGEN_OPCODE or1k_cgen_insn_opcode_table[MAX_INSNS] =
     { { MNEM, ' ', OP (RD), ',', OP (RA), ',', OP (RB), 0 } },
     & ifmt_l_sll, { 0xe0000001 }
   },
+/* l.subb $rD,$rA,$rB */
+  {
+    { 0, 0, 0, 0 },
+    { { MNEM, ' ', OP (RD), ',', OP (RA), ',', OP (RB), 0 } },
+    & ifmt_l_sll, { 0xe0000006 }
+  },
 /* l.mul $rD,$rA,$rB */
   {
     { 0, 0, 0, 0 },

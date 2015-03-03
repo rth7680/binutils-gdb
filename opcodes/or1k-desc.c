@@ -1371,6 +1371,11 @@ static const CGEN_IBASE or1k_cgen_insn_table[MAX_INSNS] =
     OR1K_INSN_L_ADDC, "l-addc", "l.addc", 32,
     { 0, { { { (1<<MACH_OR32)|(1<<MACH_OR32ND)|(1<<MACH_OR64)|(1<<MACH_OR64ND), 0 } } } }
   },
+/* l.subb $rD,$rA,$rB */
+  {
+    OR1K_INSN_L_SUBB, "l-subb", "l.subb", 32,
+    { 0, { { { (1<<MACH_OR32)|(1<<MACH_OR32ND)|(1<<MACH_OR64)|(1<<MACH_OR64ND), 0 } } } }
+  },
 /* l.mul $rD,$rA,$rB */
   {
     OR1K_INSN_L_MUL, "l-mul", "l.mul", 32,

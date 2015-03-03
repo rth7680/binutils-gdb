@@ -677,3 +677,6 @@ l_maci:
 	l.maci r2,-1
 	l.maci r2,32767
 	l.maci r2,-32768
+
+l_subb:
+	l.subb	r5,r10,r31

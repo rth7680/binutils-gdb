@@ -29,23 +29,21 @@
 (dsh h-atomic-address "atomic reserve address" () (register SI))
 
 ; Instruction classes.
-(dnf f-opcode      "insn opcode"               ((MACH ORBIS-MACHS)) 31 6)
+(dnf f-opcode      "insn opcode"  ((MACH ORBIS-MACHS)) 31 6)
 
 ; Register fields.
-(dnf f-r1          "r1"                        ((MACH ORBIS-MACHS)) 25 5)
-(dnf f-r2          "r2"                        ((MACH ORBIS-MACHS)) 20 5)
-(dnf f-r3          "r3"                        ((MACH ORBIS-MACHS)) 15 5)
+(dnf f-r1          "r1"           ((MACH ORBIS-MACHS)) 25 5)
+(dnf f-r2          "r2"           ((MACH ORBIS-MACHS)) 20 5)
+(dnf f-r3          "r3"           ((MACH ORBIS-MACHS)) 15 5)
 
 ; Sub fields
-(dnf f-op-25-2     "op-25-2"                   ((MACH ORBIS-MACHS)) 25 2) ;; nop
-(dnf f-op-25-5     "op-25-5"                   ((MACH ORBIS-MACHS)) 25 5) ;; sys, trap, *sync, sf*
-(dnf f-op-16-1     "op-16-1"                   ((MACH ORBIS-MACHS)) 16 1) ;; movhi,macrc
-(dnf f-op-7-4      "op-7-4"                    ((MACH ORBIS-MACHS)) 7 4)
-(dnf f-op-3-4      "op-3-4"                    ((MACH ORBIS-MACHS)) 3 4)
-(dnf f-op-9-2      "op-9-2"                    ((MACH ORBIS-MACHS)) 9 2) ;; alu ops upper opcode
-(dnf f-op-9-4      "op-9-4"                    ((MACH ORBIS-MACHS)) 9 4) ;;
-(dnf f-op-7-8      "op-7-8"                    ((MACH ORBIS-MACHS)) 7 8)
-(dnf f-op-7-2      "op-7-2"                    ((MACH ORBIS-MACHS)) 7 2) ;; alu lower upper opc,shroti
+(dnf f-op-25-2     "op-25-2"      ((MACH ORBIS-MACHS)) 25 2) ;; nop
+(dnf f-op-25-5     "op-25-5"      ((MACH ORBIS-MACHS)) 25 5) ;; sys, trap, *sync, sf*
+(dnf f-op-16-1     "op-16-1"      ((MACH ORBIS-MACHS)) 16 1) ;; movhi,macrc
+(dnf f-op-10-11    "op-10-11"     ((MACH ORBIS-MACHS)) 10 11) ;; alu-regreg
+(dnf f-op-10-5     "op-10-5"      ((MACH ORBIS-MACHS)) 10 5) ;; shroti
+(dnf f-op-7-8      "op-7-8"       ((MACH ORBIS-MACHS)) 7 8) ;; fpu
+(dnf f-op-3-4      "op-3-4"       ((MACH ORBIS-MACHS)) 3 4) ;; mac
 
 ; Reserved fields
 (dnf f-resv-25-26  "resv-25-26"                ((MACH ORBIS-MACHS) RESERVED) 25 26)
@@ -55,12 +53,10 @@
 (dnf f-resv-20-21  "resv-20-21"                ((MACH ORBIS-MACHS) RESERVED) 20 21)
 (dnf f-resv-20-5   "resv-20-5"                 ((MACH ORBIS-MACHS) RESERVED) 20 5)
 (dnf f-resv-20-4   "resv-20-4"                 ((MACH ORBIS-MACHS) RESERVED) 20 4)
-(dnf f-resv-15-8   "resv-15-8"                 ((MACH ORBIS-MACHS) RESERVED) 15 8)
-(dnf f-resv-15-6   "resv-15-6"                 ((MACH ORBIS-MACHS) RESERVED) 15 6)
+(dnf f-resv-15-5   "resv-15-5"                 ((MACH ORBIS-MACHS) RESERVED) 15 5)
 (dnf f-resv-10-11  "resv-10-11"                ((MACH ORBIS-MACHS) RESERVED) 10 11)
 (dnf f-resv-10-7   "resv-10-7"                 ((MACH ORBIS-MACHS) RESERVED) 10 7)
 (dnf f-resv-10-3   "resv-10-3"                 ((MACH ORBIS-MACHS) RESERVED) 10 3)
-(dnf f-resv-10-1   "resv-10-1"                 ((MACH ORBIS-MACHS) RESERVED) 10 1)
 (dnf f-resv-7-4    "resv-7-4"                  ((MACH ORBIS-MACHS) RESERVED) 7 4)
 (dnf f-resv-5-2    "resv-5-2"                  ((MACH ORBIS-MACHS) RESERVED) 5 2)
 
@@ -217,9 +213,6 @@
   )
 )
 
-;; ??? Most of the ALU_REGREG space should be using a f-op-10-11 opcode
-;; instead of f-op-3-4 plus extra bits in f-resv-10-7.
-
 (define-normal-insn-enum insn-opcode-mac
   "multiply/accumulate insn opcode enums" ((MACH ORBIS-MACHS))
   OPC_MAC_ f-op-3-4
@@ -232,7 +225,7 @@
 
 (define-normal-insn-enum insn-opcode-shorts 
   "shift/rotate insn opcode enums" ((MACH ORBIS-MACHS))
-  OPC_SHROTS_ f-op-7-2
+  OPC_SHROTS_ f-op-10-5
     (("SLL" #x0 )
      ("SRL" #x1 )
      ("SRA" #x2 )
@@ -240,44 +233,35 @@
     )
 )
 
-(define-normal-insn-enum insn-opcode-extbhs
-  "extend byte/half opcode enums" ((MACH ORBIS-MACHS))
-  OPC_EXTBHS_ f-op-9-4
-  (("EXTHS" #x0)
-   ("EXTBS" #x1)
-   ("EXTHZ" #x2)
-   ("EXTBZ" #x3)
-   )
-)
-
-(define-normal-insn-enum insn-opcode-extws
-  "extend word opcode enums" ((MACH ORBIS-MACHS))
-  OPC_EXTWS_ f-op-9-4
-  (("EXTWS" #x0)
-   ("EXTWZ" #x1)
-   )
-)
-
 (define-normal-insn-enum insn-opcode-alu-regreg 
   "alu reg/reg insn opcode enums" ((MACH ORBIS-MACHS))
-  OPC_ALU_REGREG_ f-op-3-4
-  (("ADD"   #x0)
-   ("ADDC"  #x1)
-   ("SUB"   #x2)
-   ("AND"   #x3)
-   ("OR"    #x4)
-   ("XOR"   #x5)
-   ("MUL"   #x6)
-   ("MULD"  #x7)
-   ("SHROT" #x8)
-   ("DIV"   #x9)
-   ("DIVU"  #xA)
-   ("MULU"  #xB)
-   ("EXTBH" #xC)
-   ("EXTW"  #xD)
-   ("MULDU" #xD)
-   ("CMOV"  #xE)
-   ("FFL1"  #xF)
+  OPC_ALU_REGREG_ f-op-10-11
+  (
+   ("EXTHS" #x00C)
+   ("EXTWS" #x00D)
+   ("EXTBS" #x04C)
+   ("EXTWZ" #x04D)
+   ("EXTHZ" #x08C)
+   ("EXTBZ" #x0CC)
+   ("ADD"   #x000)
+   ("ADDC"  #x001)
+   ("SUB"   #x002)
+   ("AND"   #x003)
+   ("OR"    #x004)
+   ("XOR"   #x005)
+   ("CMOV"  #x00E)
+   ("FF1"   #x00F)
+   ("SLL"   #x008)
+   ("SRL"   #x048)
+   ("SRA"   #x088)
+   ("ROR"   #x0C8)
+   ("FL1"   #x10F)
+   ("MUL"   #x306)
+   ("MULD"  #x307)
+   ("DIV"   #x309)
+   ("DIVU"  #x30A)
+   ("MULU"  #x30B)
+   ("MULDU" #x30D)
    )
 )
 
@@ -739,8 +723,7 @@
           (.str "l." mnemonic " reg/reg/reg")
           ((MACH ORBIS-MACHS))
           (.str "l." mnemonic " $rD,$rA,$rB")
-          (+ OPC_ALU rD rA rB (f-resv-10-3 0) (.sym OPC_SHROTS_ (.upcase mnemonic)) (f-resv-5-2 0) 
-	     OPC_ALU_REGREG_SHROT )
+          (+ OPC_ALU rD rA rB (.sym OPC_ALU_REGREG_ (.upcase mnemonic)))
           (set UWI rD (mnemonic rA rB))
           ()
      )
@@ -748,7 +731,8 @@
           (.str "l." mnemonic " reg/reg/uimm6")
           ((MACH ORBIS-MACHS))
           (.str "l." mnemonic "i $rD,$rA,${uimm6}")
-          (+ OPC_SHROTI rD rA (f-resv-15-8 0) (.sym OPC_SHROTS_ (.upcase mnemonic)) uimm6)
+          (+ OPC_SHROTI rD rA (f-resv-15-5 0)
+	     (.sym OPC_SHROTS_ (.upcase mnemonic)) uimm6)
           (set rD (mnemonic rA uimm6))
           ()
      )
@@ -770,7 +754,7 @@
           (.str "l." mnemonic " reg/reg/reg")
           ((MACH ORBIS-MACHS))
           (.str "l." mnemonic " $rD,$rA,$rB")
-          (+ OPC_ALU rD rA rB (f-resv-10-7 0) (.sym OPC_ALU_REGREG_ (.upcase mnemonic)))
+          (+ OPC_ALU rD rA rB (.sym OPC_ALU_REGREG_ (.upcase mnemonic)))
           (set rD (mnemonic rA rB))
           ()
      )
@@ -784,48 +768,48 @@
 (define-pmacro (alu-carry-insn mnemonic)
   (begin
     (dni (.sym l- mnemonic)
-         (.str "l." mnemonic " reg/reg/reg")
-         ((MACH ORBIS-MACHS))
-         (.str "l." mnemonic " $rD,$rA,$rB")
-         (+ OPC_ALU rD rA rB (f-resv-10-7 #x00) (.sym OPC_ALU_REGREG_ (.upcase mnemonic)))
-         (sequence ()
-                   (sequence ()
-                             (set BI sys-sr-cy ((.sym mnemonic "c-cflag") WI rA rB 0))
-                             (set BI sys-sr-ov ((.sym mnemonic "c-oflag") WI rA rB 0))
-                             (set rD (mnemonic WI rA rB))
-                             )
-                   (if (andif sys-sr-ov sys-sr-ove)
-                       (raise-exception EXCEPT-RANGE))
-                   )
-         ()
-         )
+	 (.str "l." mnemonic " reg/reg/reg")
+	 ((MACH ORBIS-MACHS))
+	 (.str "l." mnemonic " $rD,$rA,$rB")
+	 (+ OPC_ALU rD rA rB (.sym OPC_ALU_REGREG_ (.upcase mnemonic)))
+	 (sequence ()
+	    (sequence ()
+	       (set BI sys-sr-cy ((.sym mnemonic "c-cflag") WI rA rB 0))
+	       (set BI sys-sr-ov ((.sym mnemonic "c-oflag") WI rA rB 0))
+	       (set rD (mnemonic WI rA rB))
+	    )
+	    (if (andif sys-sr-ov sys-sr-ove)
+	        (raise-exception EXCEPT-RANGE))
+	 )
+	 ()
     )
   )
+)
 
 (alu-carry-insn add)
 (alu-carry-insn sub)
 
 (dni (l-addc) "l.addc reg/reg/reg"
-          ((MACH ORBIS-MACHS))
-          ("l.addc $rD,$rA,$rB")
-          (+ OPC_ALU rD rA rB (f-resv-10-7 #x00) OPC_ALU_REGREG_ADDC)
-          (sequence ()
-                    (sequence ((BI tmp-sys-sr-cy))
-                              (set BI tmp-sys-sr-cy sys-sr-cy)
-                              (set BI sys-sr-cy (addc-cflag WI rA rB tmp-sys-sr-cy))
-                              (set BI sys-sr-ov (addc-oflag WI rA rB tmp-sys-sr-cy))
-                              (set rD (addc WI rA rB tmp-sys-sr-cy))
-                              )
-                   (if (andif sys-sr-ov sys-sr-ove)
-                       (raise-exception EXCEPT-RANGE))
-                   )
-          ()
+     ((MACH ORBIS-MACHS))
+     ("l.addc $rD,$rA,$rB")
+     (+ OPC_ALU rD rA rB OPC_ALU_REGREG_ADDC)
+     (sequence ()
+	(sequence ((BI tmp-sys-sr-cy))
+	   (set BI tmp-sys-sr-cy sys-sr-cy)
+	   (set BI sys-sr-cy (addc-cflag WI rA rB tmp-sys-sr-cy))
+	   (set BI sys-sr-ov (addc-oflag WI rA rB tmp-sys-sr-cy))
+	   (set rD (addc WI rA rB tmp-sys-sr-cy))
+	)
+	(if (andif sys-sr-ov sys-sr-ove)
+	    (raise-exception EXCEPT-RANGE))
+     )
+     ()
 )
 
 (dni (l-mul) "l.mul reg/reg/reg"
      ((MACH ORBIS-MACHS))
      ("l.mul $rD,$rA,$rB")
-     (+ OPC_ALU rD rA rB (f-resv-10-7 #x30) OPC_ALU_REGREG_MUL)
+     (+ OPC_ALU rD rA rB OPC_ALU_REGREG_MUL)
      (sequence ()
 	(sequence ()
 	   (set BI sys-sr-ov (mul-o2flag WI rA rB))
@@ -840,7 +824,7 @@
 (dni (l-muld) "l.muld reg/reg"
      ((MACH ORBIS-MACHS))
      ("l.muld $rA,$rB")
-     (+ OPC_ALU (f-resv-25-5 0) rA rB (f-resv-10-7 #x30) OPC_ALU_REGREG_MULD)
+     (+ OPC_ALU (f-resv-25-5 0) rA rB OPC_ALU_REGREG_MULD)
      (sequence ((DI result))
 	(set DI result (mul DI (ext DI rA) (ext DI rB)))
 	(set SI mac-machi (subword SI result 0))
@@ -850,24 +834,24 @@
 )
 
 (dni (l-mulu) "l.mulu reg/reg/reg"
-          ((MACH ORBIS-MACHS))
-          ("l.mulu $rD,$rA,$rB")
-          (+ OPC_ALU rD rA rB (f-resv-10-7 #x30) OPC_ALU_REGREG_MULU)
-          (sequence ()
-                    (sequence ()
-                              (set BI sys-sr-cy (mul-o1flag UWI rA rB))
-                              (set rD (mul UWI rA rB))
-                              )
-                    (if (andif sys-sr-cy sys-sr-ove)
-                        (raise-exception EXCEPT-RANGE))
-                    )
-          ()
+     ((MACH ORBIS-MACHS))
+     ("l.mulu $rD,$rA,$rB")
+     (+ OPC_ALU rD rA rB OPC_ALU_REGREG_MULU)
+     (sequence ()
+	(sequence ()
+	   (set BI sys-sr-cy (mul-o1flag UWI rA rB))
+	   (set rD (mul UWI rA rB))
+	)
+	(if (andif sys-sr-cy sys-sr-ove)
+	    (raise-exception EXCEPT-RANGE))
+     )
+     ()
 )
 
 (dni (l-muldu) "l.muld reg/reg"
      ((MACH ORBIS-MACHS))
      ("l.muldu $rA,$rB")
-     (+ OPC_ALU (f-resv-25-5 0) rA rB (f-resv-10-7 #x30) OPC_ALU_REGREG_MULDU)
+     (+ OPC_ALU (f-resv-25-5 0) rA rB OPC_ALU_REGREG_MULDU)
      (sequence ((DI result))
 	(set DI result (mul DI (zext DI rA) (zext DI rB)))
 	(set SI mac-machi (subword SI result 0))
@@ -879,17 +863,17 @@
 (dni l-div "divide (signed)"
      ((MACH ORBIS-MACHS))
      "l.div $rD,$rA,$rB"
-     (+ OPC_ALU rD rA rB (f-resv-10-7 #x30) OPC_ALU_REGREG_DIV)
+     (+ OPC_ALU rD rA rB OPC_ALU_REGREG_DIV)
      (if (ne rB 0)
 	(sequence ()
-           (set BI sys-sr-ov 0)
-           (set WI rD (div WI rA rB))
-        )
+	   (set BI sys-sr-ov 0)
+	   (set WI rD (div WI rA rB))
+	)
 	(sequence ()
-           (set BI sys-sr-ov 1)
-           (if sys-sr-ove
-               (raise-exception EXCEPT-RANGE))
-        )
+	   (set BI sys-sr-ov 1)
+	   (if sys-sr-ove
+	       (raise-exception EXCEPT-RANGE))
+	)
      )
      ()
 )
@@ -897,35 +881,35 @@
 (dni l-divu "divide (unsigned)"
      ((MACH ORBIS-MACHS))
      "l.divu $rD,$rA,$rB"
-     (+ OPC_ALU rD rA rB (f-resv-10-7 #x30) OPC_ALU_REGREG_DIVU)
+     (+ OPC_ALU rD rA rB OPC_ALU_REGREG_DIVU)
      (if (ne rB 0)
 	(sequence ()
 	   (set BI sys-sr-cy 0)
 	   (set rD (udiv UWI rA rB))
-        )
+	)
 	(sequence ()
 	   (set BI sys-sr-cy 1)
 	   (if sys-sr-ove
 	       (raise-exception EXCEPT-RANGE))
-        )
+	        )
      )
      ()
 )
 
 (dni l-ff1 "find first '1'"
-          ((MACH ORBIS-MACHS))
-          "l.ff1 $rD,$rA"
-          (+ OPC_ALU rD rA rB (f-resv-10-7 #x00) OPC_ALU_REGREG_FFL1)
-          (set rD (c-call UWI "@cpu@_ff1" rA))
-          ()
+     ((MACH ORBIS-MACHS))
+     "l.ff1 $rD,$rA"
+     (+ OPC_ALU rD rA (f-resv-15-5 0) OPC_ALU_REGREG_FF1)
+     (set rD (c-call UWI "@cpu@_ff1" rA))
+     ()
 )
 
 (dni l-fl1 "find last '1'"
-          ((MACH ORBIS-MACHS))
-          "l.fl1 $rD,$rA"
-          (+ OPC_ALU rD rA rB (f-resv-10-7 #x10) OPC_ALU_REGREG_FFL1)
-          (set rD (c-call UWI "@cpu@_fl1" rA))
-          ()
+     ((MACH ORBIS-MACHS))
+     "l.fl1 $rD,$rA"
+     (+ OPC_ALU rD rA (f-resv-15-5 0) OPC_ALU_REGREG_FL1)
+     (set rD (c-call UWI "@cpu@_fl1" rA))
+     ()
 )
 
 
@@ -1016,51 +1000,38 @@
      ()
 )
 
-(define-pmacro (extbh-insn mnemonic extop extmode truncmode)
+(define-pmacro (ext-insn mnemonic extop extmode truncmode)
   (begin
     (dni (.sym l- mnemonic)
-         (.str "l." mnemonic " reg/reg")
-         ((MACH ORBIS-MACHS))
-         (.str "l." mnemonic " $rD,$rA")
-         (+ OPC_ALU rD rA (f-resv-15-6 0) (.sym OPC_EXTBHS_ (.upcase mnemonic)) (f-resv-5-2 0) OPC_ALU_REGREG_EXTBH)
+	 (.str "l." mnemonic " reg/reg")
+	 ((MACH ORBIS-MACHS))
+	 (.str "l." mnemonic " $rD,$rA")
+	 (+ OPC_ALU rD rA (f-resv-15-5 0)
+	    (.sym OPC_ALU_REGREG_ (.upcase mnemonic)))
          (set rD (extop extmode (trunc truncmode rA)))
          ()
-         )
     )
   )
+)
 
-(extbh-insn exths ext  WI  HI)
-(extbh-insn extbs ext  WI  QI)
-(extbh-insn exthz zext UWI UHI)
-(extbh-insn extbz zext UWI UQI)
-
-(define-pmacro (extw-insn mnemonic extop extmode truncmode)
-  (begin
-    (dni (.sym l- mnemonic)
-         (.str "l." mnemonic " reg/reg")
-         ((MACH ORBIS-MACHS))
-         (.str "l." mnemonic " $rD,$rA")
-         (+ OPC_ALU rD rA (f-resv-15-6 0) (.sym OPC_EXTWS_ (.upcase mnemonic)) (f-resv-5-2 0) OPC_ALU_REGREG_EXTW)
-         (set rD (extop extmode (trunc truncmode rA)))
-         ()
-         )
-    )
-  )
-
-(extw-insn extws ext  WI  SI)
-(extw-insn extwz zext USI USI)
+(ext-insn exths ext  WI  HI)
+(ext-insn extbs ext  WI  QI)
+(ext-insn exthz zext UWI UHI)
+(ext-insn extbz zext UWI UQI)
+(ext-insn extws ext  WI  SI)
+(ext-insn extwz zext USI USI)
 
 (dni l-cmov
      "l.cmov reg/reg/reg"
      ((MACH ORBIS-MACHS))
      "l.cmov $rD,$rA,$rB"
-     (+ OPC_ALU rD rA rB (f-resv-10-1 0) (f-op-9-2 0) (f-resv-7-4 0) OPC_ALU_REGREG_CMOV)
+     (+ OPC_ALU rD rA rB OPC_ALU_REGREG_CMOV)
      (if sys-sr-f
          (set UWI rD rA)
          (set UWI rD rB)
-         )
-     ()
      )
+     ()
+)
 
 ; Compare instructions
 

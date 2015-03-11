@@ -1063,7 +1063,9 @@ or1k_elf_relocate_section (bfd *output_bfd,
   bfd *dynobj;
   asection *sreloc;
   bfd_vma *local_got_offsets;
-  asection *sgot;
+  asection *sgot, *splt;
+  bfd_vma plt_base, got_base, got_sym_value;
+  bfd_boolean ret_val = TRUE;
 
   if (htab == NULL)
     return FALSE;
@@ -1073,7 +1075,21 @@ or1k_elf_relocate_section (bfd *output_bfd,
 
   sreloc = elf_section_data (input_section)->sreloc;
 
+  splt = htab->root.splt;
+  plt_base = 0;
+  if (splt != NULL)
+    plt_base = splt->output_section->vma + splt->output_offset;
+
   sgot = htab->root.sgot;
+  got_sym_value = got_base = 0;
+  if (sgot != NULL)
+    {
+      struct elf_link_hash_entry *hgot = htab->root.hgot;
+      got_sym_value = (hgot->root.u.def.value
+		       + hgot->root.u.def.section->output_section->vma
+		       + hgot->root.u.def.section->output_offset);
+      got_base = sgot->output_section->vma + sgot->output_offset;
+    }
 
   symtab_hdr = &elf_tdata (input_bfd)->symtab_hdr;
   sym_hashes = elf_sym_hashes (input_bfd);
@@ -1100,8 +1116,11 @@ or1k_elf_relocate_section (bfd *output_bfd,
 
       if (r_type < 0 || r_type >= (int) R_OR1K_max)
 	{
+	  _bfd_error_handler (_("%pB: unknown relocation type %d"),
+			      input_bfd, (int) r_type);
 	  bfd_set_error (bfd_error_bad_value);
-	  return FALSE;
+	  ret_val = FALSE;
+	  continue;
 	}
 
       howto = or1k_elf_howto_table + ELF32_R_TYPE (rel->r_info);
@@ -1139,114 +1158,122 @@ or1k_elf_relocate_section (bfd *output_bfd,
       switch (howto->type)
 	{
 	case R_OR1K_PLT26:
-	  {
-	    if (htab->root.splt != NULL && h != NULL
-		&& h->plt.offset != (bfd_vma) -1)
-	      {
-		relocation = (htab->root.splt->output_section->vma
-			      + htab->root.splt->output_offset
-			      + h->plt.offset);
-	      }
-	    break;
-	  }
-
-	case R_OR1K_GOT16:
-	  /* Relocation is to the entry for this symbol in the global
-	     offset table.  */
-	  BFD_ASSERT (sgot != NULL);
-	  if (h != NULL)
-	    {
-	      bfd_boolean dyn;
-	      bfd_vma off;
-
-	      off = h->got.offset;
-	      BFD_ASSERT (off != (bfd_vma) -1);
-
-	      dyn = htab->root.dynamic_sections_created;
-	      if (! WILL_CALL_FINISH_DYNAMIC_SYMBOL (dyn,
-						     bfd_link_pic (info),
-						     h)
-		  || (bfd_link_pic (info)
-		      && SYMBOL_REFERENCES_LOCAL (info, h)))
-		{
-		  /* This is actually a static link, or it is a
-		     -Bsymbolic link and the symbol is defined
-		     locally, or the symbol was forced to be local
-		     because of a version file.  We must initialize
-		     this entry in the global offset table.  Since the
-		     offset must always be a multiple of 4, we use the
-		     least significant bit to record whether we have
-		     initialized it already.
-
-		     When doing a dynamic link, we create a .rela.got
-		     relocation entry to initialize the value.  This
-		     is done in the finish_dynamic_symbol routine.  */
-		  if ((off & 1) != 0)
-		    off &= ~1;
-		  else
-		    {
-		      /* Write entry in GOT.  */
-		      bfd_put_32 (output_bfd, relocation,
-				  sgot->contents + off);
-		      /* Mark GOT entry as having been written.  */
-		      h->got.offset |= 1;
-		    }
-		}
-
-	      relocation = sgot->output_offset + off;
-	    }
-	  else
-	    {
-	      bfd_vma off;
-	      bfd_byte *loc;
-
-	      BFD_ASSERT (local_got_offsets != NULL
-			  && local_got_offsets[r_symndx] != (bfd_vma) -1);
-
-	      /* Get offset into GOT table.  */
-	      off = local_got_offsets[r_symndx];
-
-	      /* The offset must always be a multiple of 4.  We use
-		 the least significant bit to record whether we have
-		 already processed this entry.  */
-	      if ((off & 1) != 0)
-		off &= ~1;
-	      else
-		{
-		  /* Write entry in GOT.  */
-		  bfd_put_32 (output_bfd, relocation, sgot->contents + off);
-		  if (bfd_link_pic (info))
-		    {
-		      asection *srelgot;
-		      Elf_Internal_Rela outrel;
-
-		      /* We need to generate a R_OR1K_RELATIVE reloc
-			 for the dynamic linker.  */
-		      srelgot = htab->root.srelgot;
-		      BFD_ASSERT (srelgot != NULL);
-
-		      outrel.r_offset = (sgot->output_section->vma
-					 + sgot->output_offset
-					 + off);
-		      outrel.r_info = ELF32_R_INFO (0, R_OR1K_RELATIVE);
-		      outrel.r_addend = relocation;
-		      loc = srelgot->contents;
-		      loc += srelgot->reloc_count * sizeof (Elf32_External_Rela);
-		      bfd_elf32_swap_reloca_out (output_bfd, &outrel,loc);
-		      ++srelgot->reloc_count;
-		    }
-
-		  local_got_offsets[r_symndx] |= 1;
-		}
-	      relocation = sgot->output_offset + off;
-	    }
+	  /* If the call is not local, redirect the branch to the PLT.
+	     Otherwise do nothing to send the branch to the symbol direct.  */
+	  if (SYMBOL_CALLS_LOCAL (info, h)
+	      && h->plt.offset != (bfd_vma) -1)
+	    relocation = plt_base + h->plt.offset;
 
 	  /* Addend should be zero.  */
 	  if (rel->r_addend != 0)
-	    _bfd_error_handler
-	      (_("internal error: addend should be zero for %s"),
-	       "R_OR1K_GOT16");
+	    {
+	      _bfd_error_handler
+		(_("%pB: addend should be zero for plt relocations"),
+		 input_bfd);
+	      bfd_set_error (bfd_error_bad_value);
+	      ret_val = FALSE;
+	    }
+	  break;
 
+	case R_OR1K_GOT16:
+	  {
+	    bfd_vma off;
+
+	    /* Relocation is to the entry for this symbol in the global
+	       offset table.  */
+	    BFD_ASSERT (sgot != NULL);
+	    if (h != NULL)
+	      {
+		bfd_boolean dyn;
+
+		off = h->got.offset;
+		BFD_ASSERT (off != (bfd_vma) -1);
+
+		dyn = htab->root.dynamic_sections_created;
+		if (! WILL_CALL_FINISH_DYNAMIC_SYMBOL (dyn,
+						       bfd_link_pic (info),
+						       h)
+		    || (bfd_link_pic (info)
+			&& SYMBOL_REFERENCES_LOCAL (info, h)))
+		  {
+		    /* This is actually a static link, or it is a
+		       -Bsymbolic link and the symbol is defined
+		       locally, or the symbol was forced to be local
+		       because of a version file.  We must initialize
+		       this entry in the global offset table.  Since the
+		       offset must always be a multiple of 4, we use the
+		       least significant bit to record whether we have
+		       initialized it already.
+
+		       When doing a dynamic link, we create a .rela.got
+		       relocation entry to initialize the value.  This
+		       is done in the finish_dynamic_symbol routine.  */
+		    if ((off & 1) != 0)
+		      off &= ~1;
+		    else
+		      {
+			/* Write entry in GOT.  */
+			bfd_put_32 (output_bfd, relocation,
+				    sgot->contents + off);
+			/* Mark GOT entry as having been written.  */
+			h->got.offset |= 1;
+		      }
+		  }
+	      }
+	    else
+	      {
+		bfd_byte *loc;
+
+		BFD_ASSERT (local_got_offsets != NULL
+			    && local_got_offsets[r_symndx] != (bfd_vma) -1);
+
+		/* Get offset into GOT table.  */
+		off = local_got_offsets[r_symndx];
+
+		/* The offset must always be a multiple of 4.  We use
+		   the least significant bit to record whether we have
+		   already processed this entry.  */
+		if ((off & 1) != 0)
+		  off &= ~1;
+		else
+		  {
+		    /* Write entry in GOT.  */
+		    bfd_put_32 (output_bfd, relocation, sgot->contents + off);
+		    if (bfd_link_pic (info))
+		      {
+			asection *srelgot;
+			Elf_Internal_Rela outrel;
+
+			/* We need to generate a R_OR1K_RELATIVE reloc
+			   for the dynamic linker.  */
+			srelgot = htab->root.srelgot;
+			BFD_ASSERT (srelgot != NULL);
+
+			outrel.r_offset = got_base + off;
+			outrel.r_info = ELF32_R_INFO (0, R_OR1K_RELATIVE);
+			outrel.r_addend = relocation;
+			loc = srelgot->contents;
+			loc += (srelgot->reloc_count
+				* sizeof (Elf32_External_Rela));
+			bfd_elf32_swap_reloca_out (output_bfd, &outrel,loc);
+			++srelgot->reloc_count;
+		      }
+
+		    local_got_offsets[r_symndx] |= 1;
+		  }
+	      }
+	    relocation = got_base + off - got_sym_value;
+
+	    /* Addend should be zero.  */
+	    if (rel->r_addend != 0)
+	      {
+		_bfd_error_handler
+		  (_("%pB: addend should be zero for got relocations"),
+		   input_bfd);
+		bfd_set_error (bfd_error_bad_value);
+		ret_val = FALSE;
+	      }
+	  }
 	  break;
 
         case R_OR1K_GOTOFF_LO16:
@@ -1255,41 +1282,66 @@ or1k_elf_relocate_section (bfd *output_bfd,
         case R_OR1K_GOTOFF_SLO16:
           /* Relocation is offset from GOT.  */
           BFD_ASSERT (sgot != NULL);
-	  relocation
-	    -= (htab->root.hgot->root.u.def.value
-		+ htab->root.hgot->root.u.def.section->output_offset
-		+ htab->root.hgot->root.u.def.section->output_section->vma);
-          break;
+	  if (!SYMBOL_REFERENCES_LOCAL (info, h))
+	    {
+	      _bfd_error_handler
+		(_("%pB: gotoff relocation against dynamic symbol %s"),
+		 input_bfd, h->root.root.string);
+	      ret_val = FALSE;
+	      bfd_set_error (bfd_error_bad_value);
+	    }
+	  relocation -= got_sym_value;
+	  break;
 
         case R_OR1K_INSN_REL_26:
+	  /* For a non-shared link, these will reference either the plt
+	     or a .dynbss copy of the symbol.  */
+	  if (bfd_link_pic (info) && !SYMBOL_REFERENCES_LOCAL (info, h))
+	    {
+	      _bfd_error_handler
+		(_("%pB: pc-relative relocation against dynamic symbol %s"),
+		 input_bfd, h->root.root.string);
+	      ret_val = FALSE;
+	      bfd_set_error (bfd_error_bad_value);
+	    }
+	  break;
+
         case R_OR1K_HI_16_IN_INSN:
         case R_OR1K_LO_16_IN_INSN:
         case R_OR1K_AHI16:
         case R_OR1K_SLO16:
-        case R_OR1K_32:
-          /* R_OR1K_16? */
-          {
-            /* r_symndx will be STN_UNDEF (zero) only for relocs against symbols
-               from removed linkonce sections, or sections discarded by
-               a linker script.  */
-            if (r_symndx == STN_UNDEF
-                || (input_section->flags & SEC_ALLOC) == 0)
-              break;
+	  if (bfd_link_pic (info))
+	    {
+	      _bfd_error_handler
+		(_("%pB: non-pic relocation against symbol %s"),
+		 input_bfd, h->root.root.string);
+	      ret_val = FALSE;
+	      bfd_set_error (bfd_error_bad_value);
+	    }
+	  break;
 
-            if ((bfd_link_pic (info)
-                 && (h == NULL
-                     || ELF_ST_VISIBILITY (h->other) == STV_DEFAULT
-                     || h->root.type != bfd_link_hash_undefweak)
-		 && (howto->type != R_OR1K_INSN_REL_26
-		     || !SYMBOL_CALLS_LOCAL (info, h)))
-		|| (!bfd_link_pic (info)
-		    && h != NULL
-		    && h->dynindx != -1
-		    && !h->non_got_ref
-		    && ((h->def_dynamic
-			 && !h->def_regular)
-			|| h->root.type == bfd_link_hash_undefweak
-			|| h->root.type == bfd_link_hash_undefined)))
+        case R_OR1K_32:
+	  {
+	    /* r_symndx will be STN_UNDEF (zero) only for relocs against symbols
+	       from removed linkonce sections, or sections discarded by
+	       a linker script.  */
+	    if (r_symndx == STN_UNDEF
+		|| (input_section->flags & SEC_ALLOC) == 0)
+	      break;
+
+	    /* Emit a direct relocation if the symbol is dynamic,
+	       or a RELATIVE reloc for shared objects.  We can omit
+	       RELATIVE relocs to local undefweak symbols.  */
+	    if (bfd_link_pic (info)
+		? (h == NULL
+		   || ELF_ST_VISIBILITY (h->other) == STV_DEFAULT
+		   || h->root.type != bfd_link_hash_undefweak)
+		: (h != NULL
+		   && h->dynindx != -1
+		   && !h->non_got_ref
+		   && ((h->def_dynamic && !h->def_regular)
+		       || h->root.type == bfd_link_hash_undefweak
+		       || h->root.type == bfd_link_hash_undefined)))
 	      {
 		Elf_Internal_Rela outrel;
 		bfd_byte *loc;
@@ -1315,32 +1367,16 @@ or1k_elf_relocate_section (bfd *output_bfd,
 
 		if (skip)
 		  memset (&outrel, 0, sizeof outrel);
-		/* h->dynindx may be -1 if the symbol was marked to
-		   become local.  */
-		else if (h != NULL
-			 && ((! info->symbolic && h->dynindx != -1)
-			     || !h->def_regular))
+		else if (SYMBOL_REFERENCES_LOCAL (info, h))
+		  {
+		    outrel.r_info = ELF32_R_INFO (0, R_OR1K_RELATIVE);
+		    outrel.r_addend = relocation + rel->r_addend;
+		  }
+		else
 		  {
 		    BFD_ASSERT (h->dynindx != -1);
 		    outrel.r_info = ELF32_R_INFO (h->dynindx, r_type);
 		    outrel.r_addend = rel->r_addend;
-		  }
-		else
-		  {
-		    if (r_type == R_OR1K_32)
-		      {
-			outrel.r_info = ELF32_R_INFO (0, R_OR1K_RELATIVE);
-			outrel.r_addend = relocation + rel->r_addend;
-		      }
-		    else
-		      {
-			BFD_FAIL ();
-			_bfd_error_handler
-			  (_("%pB: probably compiled without -fPIC?"),
-			   input_bfd);
-			bfd_set_error (bfd_error_bad_value);
-			return FALSE;
-		      }
 		  }
 
 		loc = sreloc->contents;
@@ -1351,12 +1387,12 @@ or1k_elf_relocate_section (bfd *output_bfd,
 	    break;
 	  }
 
-	case R_OR1K_TLS_LDM_HI16:
-	case R_OR1K_TLS_LDM_LO16:
-	case R_OR1K_TLS_LDO_HI16:
-	case R_OR1K_TLS_LDO_LO16:
-	  /* TODO: implement support for local dynamic.  */
-	  BFD_FAIL ();
+        case R_OR1K_TLS_LDM_HI16:
+        case R_OR1K_TLS_LDM_LO16:
+        case R_OR1K_TLS_LDO_HI16:
+        case R_OR1K_TLS_LDO_LO16:
+          /* TODO: implement support for local dynamic.  */
+          BFD_FAIL ();
 	  _bfd_error_handler
             (_("%pB: support for local dynamic not implemented"),
              input_bfd);
@@ -1399,70 +1435,68 @@ or1k_elf_relocate_section (bfd *output_bfd,
             BFD_ASSERT (elf_hash_table (info)->hgot == NULL
 			|| elf_hash_table (info)->hgot->root.u.def.value == 0);
 
-	    /* Dynamic entries will require relocations. if we do not need
-	       them we will just use the default R_OR1K_NONE and
-	       not set anything.  */
-	    dynamic = bfd_link_pic (info)
+            /* Dynamic entries will require relocations. if we do not need
+               them we will just use the default R_OR1K_NONE and
+               not set anything.  */
+            dynamic = bfd_link_pic (info)
 	      || (sec && (sec->flags & SEC_ALLOC) != 0
 		  && h != NULL
 		  && (h->root.type == bfd_link_hash_defweak || !h->def_regular));
 
-	    /* Shared GD.  */
-	    if (dynamic && (howto->type == R_OR1K_TLS_GD_HI16
+            /* Shared GD.  */
+            if (dynamic && (howto->type == R_OR1K_TLS_GD_HI16
 			    || howto->type == R_OR1K_TLS_GD_LO16))
-	      {
-		int i;
+              {
+                int i;
 
-		/* Add DTPMOD and DTPOFF GOT and rela entries.  */
-		for (i = 0; i < 2; ++i)
-		  {
-		    rela.r_offset = sgot->output_section->vma +
-		      sgot->output_offset + gotoff + i*4;
-		    if (h != NULL && h->dynindx != -1)
-		      {
-			rela.r_info = ELF32_R_INFO (h->dynindx,
-			    (i == 0 ? R_OR1K_TLS_DTPMOD : R_OR1K_TLS_DTPOFF));
-			rela.r_addend = 0;
-		      }
-		    else
-		      {
-			rela.r_info = ELF32_R_INFO (0,
-			    (i == 0 ? R_OR1K_TLS_DTPMOD : R_OR1K_TLS_DTPOFF));
-			rela.r_addend = tpoff (info, relocation);
-		      }
+                /* Add DTPMOD and DTPOFF GOT and rela entries.  */
+                for (i = 0; i < 2; ++i)
+                  {
+                    rela.r_offset = got_base + gotoff + i*4;
+                    if (h != NULL && h->dynindx != -1)
+                      {
+                        rela.r_info = ELF32_R_INFO (h->dynindx,
+                            (i == 0 ? R_OR1K_TLS_DTPMOD : R_OR1K_TLS_DTPOFF));
+                        rela.r_addend = 0;
+                      }
+                    else
+                      {
+                        rela.r_info = ELF32_R_INFO (0,
+                            (i == 0 ? R_OR1K_TLS_DTPMOD : R_OR1K_TLS_DTPOFF));
+                        rela.r_addend = tpoff (info, relocation);
+                      }
 
-		    loc = sreloc->contents;
-		    loc += sreloc->reloc_count++ *
-		      sizeof (Elf32_External_Rela);
+                    loc = sreloc->contents;
+                    loc += sreloc->reloc_count++ *
+                      sizeof (Elf32_External_Rela);
 
-		    bfd_elf32_swap_reloca_out (output_bfd, &rela, loc);
-		    bfd_put_32 (output_bfd, 0, sgot->contents + gotoff + i*4);
-		  }
-	      }
-	    /* Static GD.  */
-	    else if (howto->type == R_OR1K_TLS_GD_HI16
-		     || howto->type == R_OR1K_TLS_GD_LO16)
-	      {
-		bfd_put_32 (output_bfd, 1, sgot->contents + gotoff);
-		bfd_put_32 (output_bfd, tpoff (info, relocation),
-		    sgot->contents + gotoff + 4);
-	      }
-	    /* Shared IE.  */
-	    else if (dynamic)
-	      {
-		/* Add TPOFF GOT and rela entries.  */
-		rela.r_offset = sgot->output_section->vma +
-		  sgot->output_offset + gotoff;
-		if (h != NULL && h->dynindx != -1)
-		  {
-		    rela.r_info = ELF32_R_INFO (h->dynindx, R_OR1K_TLS_TPOFF);
-		    rela.r_addend = 0;
-		  }
-		else
-		  {
-		    rela.r_info = ELF32_R_INFO (0, R_OR1K_TLS_TPOFF);
-		    rela.r_addend = tpoff (info, relocation);
-		  }
+                    bfd_elf32_swap_reloca_out (output_bfd, &rela, loc);
+                    bfd_put_32 (output_bfd, 0, sgot->contents + gotoff + i*4);
+                  }
+              }
+            /* Static GD.  */
+            else if (howto->type == R_OR1K_TLS_GD_HI16
+                     || howto->type == R_OR1K_TLS_GD_LO16)
+              {
+                bfd_put_32 (output_bfd, 1, sgot->contents + gotoff);
+                bfd_put_32 (output_bfd, tpoff (info, relocation),
+                    sgot->contents + gotoff + 4);
+              }
+            /* Shared IE.  */
+            else if (dynamic)
+              {
+                /* Add TPOFF GOT and rela entries.  */
+                rela.r_offset = got_base + gotoff;
+                if (h != NULL && h->dynindx != -1)
+                  {
+                    rela.r_info = ELF32_R_INFO (h->dynindx, R_OR1K_TLS_TPOFF);
+                    rela.r_addend = 0;
+                  }
+                else
+                  {
+                    rela.r_info = ELF32_R_INFO (0, R_OR1K_TLS_TPOFF);
+                    rela.r_addend = tpoff (info, relocation);
+                  }
 
 		loc = sreloc->contents;
 		loc += sreloc->reloc_count++ * sizeof (Elf32_External_Rela);
@@ -1476,7 +1510,7 @@ or1k_elf_relocate_section (bfd *output_bfd,
 		bfd_put_32 (output_bfd, tpoff (info, relocation),
 			    sgot->contents + gotoff);
               }
-            relocation = sgot->output_offset + gotoff;
+            relocation = got_base + gotoff;
             break;
           }
 
@@ -1547,7 +1581,7 @@ or1k_elf_relocate_section (bfd *output_bfd,
 	}
     }
 
-  return TRUE;
+  return ret_val;
 }
 
 /* Return the section that should be marked against GC for a given

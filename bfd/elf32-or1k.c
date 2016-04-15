@@ -809,6 +809,44 @@ static reloc_howto_type or1k_elf_howto_table[] =
          0x03ffffff,            /* Dest Mask.  */
          TRUE),                 /* PC relative offset?  */
 
+  /* Offsetting 16-bit relocations.  These are intended to be used along
+     with another relocation to provide an additional offset to the insn.
+     The value should be ABS-based, and it is added to the existing contents
+     of the field, checking for overflow.  This allows a small (alignment
+     limited) offset to R_OR1K_LO_16_IN_INSN and R_OR1K_GOTOFF_LO16, and
+     a large [-32768, 24576] offset to R_OR1K_LO13.
+
+     C.f. the R_SPARC_OLO13 relocation, which takes advantage of extra space
+     in Elf64_Rel to store the second offset.  Since this is elf32, we must
+     make do with a secondary relocation.  */
+  HOWTO (R_OR1K_OLO16,          /* type */
+         0,                     /* rightshift */
+         2,                     /* size (0 = byte, 1 = short, 2 = long) */
+         16,                    /* bitsize */
+         FALSE,                 /* pc_relative */
+         0,                     /* bitpos */
+         complain_overflow_signed, /* complain_on_overflow */
+         bfd_elf_generic_reloc, /* special_function */
+         "R_OR1K_OLO16",        /* name */
+         FALSE,                 /* partial_inplace */
+         0,                     /* src_mask */
+         0xffff,                /* dst_mask */
+         FALSE),                /* pcrel_offset */
+
+  HOWTO (R_OR1K_OSLO16,         /* type */
+         0,                     /* rightshift */
+         2,                     /* size (0 = byte, 1 = short, 2 = long) */
+         16,                    /* bitsize */
+         FALSE,                 /* pc_relative */
+         0,                     /* bitpos */
+         complain_overflow_signed, /* complain_on_overflow */
+         bfd_elf_generic_reloc, /* special_function */
+         "R_OR1K_OSLO16",       /* name */
+         FALSE,                 /* partial_inplace */
+         0,                     /* src_mask */
+         0xffff,                /* dst_mask */
+         FALSE),                /* pcrel_offset */
+
   HOWTO (R_OR1K_64,
          0,                     /* rightshift */
          3,                     /* size (0 = byte, 1 = short, 2 = long) */
@@ -899,6 +937,8 @@ static const struct or1k_reloc_map or1k_reloc_map[] =
   { BFD_RELOC_OR1K_TLS_IE_LO13,	R_OR1K_TLS_IE_LO13 },
   { BFD_RELOC_OR1K_SLO13,	R_OR1K_SLO13 },
   { BFD_RELOC_OR1K_PLTA26,	R_OR1K_PLTA26 },
+  { BFD_RELOC_OR1K_OLO16,	R_OR1K_OLO16 },
+  { BFD_RELOC_OR1K_OSLO16,	R_OR1K_OSLO16 },
   { BFD_RELOC_64,               R_OR1K_64 },
   { BFD_RELOC_64_PCREL,         R_OR1K_64_PCREL },
 };
@@ -1129,6 +1169,16 @@ or1k_final_link_relocate (reloc_howto_type *howto, bfd *input_bfd,
   if (offset + size > bfd_get_section_limit_octets (input_bfd, input_section))
     return bfd_reloc_outofrange;
 
+  /* If we're overwriting the entire destination,
+     then no need to read the current contents.  */
+  if (size == 0 || howto->dst_mask == N_ONES (size))
+    x = 0;
+  else
+    {
+      BFD_ASSERT (size == 4);
+      x = bfd_get_32 (input_bfd, contents + offset);
+    }
+
   place = (input_section->output_section->vma
 	   + input_section->output_offset
 	   + (howto->pcrel_offset ? offset : 0));
@@ -1165,6 +1215,13 @@ or1k_final_link_relocate (reloc_howto_type *howto, bfd *input_bfd,
     case R_OR1K_TLS_IE_LO13:
     case R_OR1K_SLO13:
       value &= 8191;
+      break;
+
+    case R_OR1K_OLO16:
+      value += ((x & 0xffff) ^ 0x8000) - 0x8000;
+      break;
+    case R_OR1K_OSLO16:
+      value += ((((x >> 10) & 0xf800) | (x & 0x7ff)) ^ 0x8000) - 0x8000;
       break;
 
     default:
@@ -1204,22 +1261,13 @@ or1k_final_link_relocate (reloc_howto_type *howto, bfd *input_bfd,
 
   value >>= howto->rightshift;
 
-  /* If we're overwriting the entire destination,
-     then no need to read the current contents.  */
-  if (size == 0 || howto->dst_mask == N_ONES (size))
-    x = 0;
-  else
-    {
-      BFD_ASSERT (size == 4);
-      x = bfd_get_32 (input_bfd, contents + offset);
-    }
-
   switch (howto->type)
     {
     case R_OR1K_SLO16:
     case R_OR1K_GOTOFF_SLO16:
     case R_OR1K_TLS_LE_SLO16:
     case R_OR1K_SLO13:
+    case R_OR1K_OSLO16:
       /* The split imm16 field used for stores.  */
       x = (x & ~0x3e007ff) | ((value & 0xf800) << 10) | (value & 0x7ff);
       break;

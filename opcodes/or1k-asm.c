@@ -56,42 +56,6 @@ static const char * INVALID_STORE_RELOC = N_("relocation invalid for store");
 #define CGEN_VERBOSE_ASSEMBLER_ERRORS
 
 static const char *
-parse_disp26 (CGEN_CPU_DESC cd,
-	      const char ** strp,
-	      int opindex,
-	      int opinfo ATTRIBUTE_UNUSED,
-	      enum cgen_parse_operand_result * resultp,
-	      bfd_vma * valuep)
-{
-  const char *str = *strp;
-  const char *errmsg = NULL;
-  bfd_reloc_code_real_type reloc = BFD_RELOC_OR1K_REL_26;
-
-  if (strncasecmp (str, "plta(", 5) == 0)
-    {
-      *strp = str + 5;
-      reloc = BFD_RELOC_OR1K_PLTA26;
-    }
-  else if (strncasecmp (str, "plt(", 4) == 0)
-    {
-      *strp = str + 4;
-      reloc = BFD_RELOC_OR1K_PLT26;
-    }
-
-  errmsg = cgen_parse_address (cd, strp, opindex, reloc, resultp, valuep);
-
-  if (reloc != BFD_RELOC_OR1K_REL_26)
-    {
-      if (**strp != ')')
-	errmsg = MISSING_CLOSING_PARENTHESIS;
-      else
-	++*strp;
-    }
-
-  return errmsg;
-}
-
-static const char *
 parse_disp21 (CGEN_CPU_DESC cd,
 	      const char ** strp,
 	      int opindex,
@@ -447,14 +411,14 @@ or1k_cgen_parse_operand (CGEN_CPU_DESC cd,
     case OR1K_OPERAND_DISP21 :
       {
         bfd_vma value = 0;
-        errmsg = parse_disp21 (cd, strp, OR1K_OPERAND_DISP21, 0, NULL,  & value);
+        errmsg = cgen_parse_address (cd, strp, OR1K_OPERAND_DISP21, 0, NULL,  & value);
         fields->f_disp21 = value;
       }
       break;
     case OR1K_OPERAND_DISP26 :
       {
         bfd_vma value = 0;
-        errmsg = parse_disp26 (cd, strp, OR1K_OPERAND_DISP26, 0, NULL,  & value);
+        errmsg = cgen_parse_address (cd, strp, OR1K_OPERAND_DISP26, 0, NULL,  & value);
         fields->f_disp26 = value;
       }
       break;
@@ -486,16 +450,16 @@ or1k_cgen_parse_operand (CGEN_CPU_DESC cd,
       errmsg = cgen_parse_keyword (cd, strp, & or1k_cgen_opval_h_fsr, & fields->f_r1);
       break;
     case OR1K_OPERAND_SIMM16 :
-      errmsg = parse_simm16 (cd, strp, OR1K_OPERAND_SIMM16, (long *) (& fields->f_simm16));
+      errmsg = parse_imm16 (cd, strp, OR1K_OPERAND_SIMM16, (long *) (& fields->f_simm16));
       break;
     case OR1K_OPERAND_SIMM16_SPLIT :
-      errmsg = parse_simm16_split (cd, strp, OR1K_OPERAND_SIMM16_SPLIT, (long *) (& fields->f_simm16_split));
+      errmsg = parse_imm16 (cd, strp, OR1K_OPERAND_SIMM16_SPLIT, (long *) (& fields->f_simm16_split));
       break;
     case OR1K_OPERAND_UIMM16 :
-      errmsg = parse_uimm16 (cd, strp, OR1K_OPERAND_UIMM16, (unsigned long *) (& fields->f_uimm16));
+      errmsg = parse_imm16 (cd, strp, OR1K_OPERAND_UIMM16, (unsigned long *) (& fields->f_uimm16));
       break;
     case OR1K_OPERAND_UIMM16_SPLIT :
-      errmsg = parse_uimm16_split (cd, strp, OR1K_OPERAND_UIMM16_SPLIT, (unsigned long *) (& fields->f_uimm16_split));
+      errmsg = cgen_parse_unsigned_integer (cd, strp, OR1K_OPERAND_UIMM16_SPLIT, (unsigned long *) (& fields->f_uimm16_split));
       break;
     case OR1K_OPERAND_UIMM6 :
       errmsg = cgen_parse_unsigned_integer (cd, strp, OR1K_OPERAND_UIMM6, (unsigned long *) (& fields->f_uimm6));

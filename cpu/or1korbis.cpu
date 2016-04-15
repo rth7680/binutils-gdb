@@ -318,7 +318,6 @@
   (attrs (MACH ORBIS-MACHS))
   (type h-iaddr)
   (index f-disp26)
-  (handlers (parse "disp26"))
   )
 
 (define-operand
@@ -327,7 +326,6 @@
   (attrs (MACH ORBIS-MACHS))
   (type h-iaddr)
   (index f-disp21)
-  (handlers (parse "disp21"))
   )
 
 (define-operand
@@ -336,7 +334,7 @@
   (attrs (MACH ORBIS-MACHS) SIGN-OPT)
   (type h-simm16)
   (index f-simm16)
-  (handlers (parse "simm16"))
+  (handlers (parse "imm16"))
   )
 
 (define-operand
@@ -345,7 +343,7 @@
   (attrs (MACH ORBIS-MACHS))
   (type h-uimm16)
   (index f-uimm16)
-  (handlers (parse "uimm16"))
+  (handlers (parse "imm16"))
   )
 
 (define-operand
@@ -354,7 +352,7 @@
   (attrs (MACH ORBIS-MACHS) SIGN-OPT)
   (type h-simm16)
   (index f-simm16-split)
-  (handlers (parse "simm16_split"))
+  (handlers (parse "imm16"))
 )
 
 (define-operand
@@ -363,7 +361,6 @@
   (attrs (MACH ORBIS-MACHS))
   (type h-uimm16)
   (index f-uimm16-split)
-  (handlers (parse "uimm16_split"))
 )
 
 ; Instructions.

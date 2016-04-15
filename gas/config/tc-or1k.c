@@ -162,6 +162,131 @@ md_operand (expressionS * expressionP)
     }
 }
 
+/* Parse a relocation.  This allows us to build (slightly) complex
+   expressions such as po(foo)+8.  */
+
+#define O_hi		O_md1
+#define O_ha		O_md2
+#define O_lo		O_md3
+#define O_po		O_md4
+
+#define O_got		O_md5
+#define O_gotpo		O_md6
+
+#define O_gotoffhi	O_md7
+#define O_gotoffha	O_md8
+#define O_gotofflo	O_md9
+
+#define O_gottphi	O_md10
+#define O_gottplo	O_md11
+
+#define O_tlsgd		O_md12
+#define O_tlsgdhi	O_md13
+#define O_tlsgdlo	O_md14
+#define O_tlsgdpo	O_md15
+
+#define O_gottp		O_md16
+#define O_gottphi	O_md17
+#define O_gottpha	O_md18
+#define O_gottplo	O_md19
+#define O_gottppo	O_md20
+
+#define O_tpoffhi	O_md21
+#define O_tpoffha	O_md22
+#define O_tpofflo	O_md23
+
+#define O_plt		O_md24
+#define O_plta		O_md25
+
+operatorT
+md_operator (const char *name, unsigned int operands, char *pc)
+{
+  /* These are unary, "function-like" operators.  Therefore, reject
+     in a binary context, or without a following parenthesis.  */
+  if (operands != 1 || *pc != '(')
+    return O_absent;
+
+  /* ??? Auto-generated perfect hashing would be nice... */
+  switch (name[0])
+    {
+    case 'G': case 'g':
+      if (strcasecmp (name, "got") == 0)
+	return O_got;
+      if (strcasecmp (name, "gotpo") == 0)
+	return O_gotpo;
+      if (strncasecmp (name, "gotoff", 6) == 0)
+	{
+	  if (strcasecmp (name + 6, "hi") == 0)
+	    return O_gotoffhi;
+	  if (strcasecmp (name + 6, "ha") == 0)
+	    return O_gotoffha;
+	  if (strcasecmp (name + 6, "lo") == 0)
+	    return O_gotofflo;
+	}
+      else if (strncasecmp (name, "gottp", 5) == 0)
+	{
+	  if (name[5] == '\0')
+	    return O_gottp;
+	  if (strcasecmp (name + 5, "hi") == 0)
+	    return O_gottphi;
+	  if (strcasecmp (name + 5, "ha") == 0)
+	    return O_gottpha;
+	  if (strcasecmp (name + 5, "lo") == 0)
+	    return O_gottplo;
+	  if (strcasecmp (name + 5, "po") == 0)
+	    return O_gottppo;
+	}
+      break;
+
+    case 'H': case 'h':
+      if (strcasecmp (name, "hi") == 0)
+	return O_hi;
+      if (strcasecmp (name, "ha") == 0)
+	return O_ha;
+      break;
+
+    case 'L': case 'l':
+      if (strcasecmp (name, "lo") == 0)
+	return O_lo;
+      break;
+
+    case 'P': case 'p:
+      if (strcasecmp (name, "po") == 0)
+	return O_po;
+      break;
+
+    case 'T': case 't':
+      if (strncasecmp (name, "tlsgd", 5) == 0)
+	{
+	  if (name[5] == '\0')
+	    return O_tlsgd;
+	  if (strcasecmp (name + 5, "hi") == 0)
+	    return O_tlsgdhi;
+	  if (strcasecmp (name + 5, "lo") == 0)
+	    return O_tlsgdlo;
+	  if (strcasecmp (name + 5, "po") == 0)
+	    return O_tlsgdpo;
+	}
+      else if (strncasecmp (name, "tpoff") == 0)
+	{
+	  if (strcasecmp (name + 5, "hi") == 0)
+	    return O_tpoffhi;
+	  if (strcasecmp (name + 5, "ha") == 0)
+	    return O_tpoffha;
+	  if (strcasecmp (name + 5, "lo") == 0)
+	    return O_tpofflo;
+	}
+      break;
+    }
+  return O_absent;
+}
+
+int
+or1k_parse_fix_exp (int opinfo, expressionS *exp)
+{
+  YOUAREHERE;
+}
+
 valueT
 md_section_align (segT segment, valueT size)
 {

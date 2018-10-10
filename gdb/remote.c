@@ -7958,7 +7958,8 @@ remote_target::fetch_register_using_p (struct regcache *regcache,
   struct gdbarch *gdbarch = regcache->arch ();
   struct remote_state *rs = get_remote_state ();
   char *buf, *p;
-  gdb_byte *regp = (gdb_byte *) alloca (register_size (gdbarch, reg->regnum));
+  int size = register_size (gdbarch, reg->regnum);
+  gdb_byte *regp = (gdb_byte *) alloca (size);
   int i;
 
   if (packet_support (PACKET_p) == PACKET_DISABLE)
@@ -8003,6 +8004,8 @@ remote_target::fetch_register_using_p (struct regcache *regcache,
     {
       if (p[1] == 0)
 	error (_("fetch_register_using_p: early buf termination"));
+      if (i == size)
+	error (_("fetch_register_using_p: late buf termination"));
 
       regp[i++] = fromhex (p[0]) * 16 + fromhex (p[1]);
       p += 2;
